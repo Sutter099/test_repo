@@ -29,7 +29,7 @@ main(int argc, char *argv[])
 
     close(fd_parent_read[0]);
     close(fd_parent_send[1]);
-    wait(&pid);
+    wait(0);
   } else {
     // child
     close(fd_parent_read[0]);
