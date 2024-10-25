@@ -132,3 +132,19 @@ printfinit(void)
   initlock(&pr.lock, "pr");
   pr.locking = 1;
 }
+
+void
+backtrace(void)
+{
+  void **fp;  // 帧指针 (frame pointer)
+
+  printf("backtrace\n");
+  asm("mv %0, s0" : "=r"(fp)); // current frame pointer
+
+  while (fp && PGROUNDDOWN((unsigned long)fp) != PGROUNDUP((unsigned long)fp)) {
+    void **last_fp = (fp - 2);
+    // printf("frame %d: last_fp %p ra %p\n", i, *last_fp, *(last_fp + 1));
+    printf("%p\n", *(last_fp + 1));
+    fp = *last_fp;
+  }
+}
