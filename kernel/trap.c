@@ -46,10 +46,10 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
-  
+
   // save user program counter.
   p->trapframe->epc = r_sepc();
-  
+
   if(r_scause() == 8){
     // system call
 
@@ -78,12 +78,48 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2) {
-    // printf("cpu tick\n");
     struct proc *p = myproc();
-    p->ticks_occur++;
-    if (p->ticks_occur >= p->interval) {
-      p->ticks_occur = 0;
-      p->trapframe->epc = (uint64)p->alarm_handler;
+
+    if (p->sig_flag == SIG_COUNTING) {
+      p->ticks_occur++;
+      if (p->ticks_occur >= p->interval) {
+        p->sig_ctx.pc = p->trapframe->epc;
+        p->sig_ctx.ra = p->trapframe->ra;
+        p->sig_ctx.sp = p->trapframe->sp;
+        p->sig_ctx.gp = p->trapframe->gp;
+        p->sig_ctx.tp = p->trapframe->tp;
+        p->sig_ctx.t0 = p->trapframe->t0;
+        p->sig_ctx.t1 = p->trapframe->t1;
+        p->sig_ctx.t2 = p->trapframe->t2;
+        p->sig_ctx.s0 = p->trapframe->s0;
+        p->sig_ctx.s1 = p->trapframe->s1;
+        p->sig_ctx.a0 = p->trapframe->a0;
+        p->sig_ctx.a1 = p->trapframe->a1;
+        p->sig_ctx.a2 = p->trapframe->a2;
+        p->sig_ctx.a3 = p->trapframe->a3;
+        p->sig_ctx.a4 = p->trapframe->a4;
+        p->sig_ctx.a5 = p->trapframe->a5;
+        p->sig_ctx.a6 = p->trapframe->a6;
+        p->sig_ctx.a7 = p->trapframe->a7;
+        p->sig_ctx.s2 = p->trapframe->s2;
+        p->sig_ctx.s3 = p->trapframe->s3;
+        p->sig_ctx.s4 = p->trapframe->s4;
+        p->sig_ctx.s5 = p->trapframe->s5;
+        p->sig_ctx.s6 = p->trapframe->s6;
+        p->sig_ctx.s7 = p->trapframe->s7;
+        p->sig_ctx.s8 = p->trapframe->s8;
+        p->sig_ctx.s9 = p->trapframe->s9;
+        p->sig_ctx.s10 = p->trapframe->s10;
+        p->sig_ctx.s11 = p->trapframe->s11;
+        p->sig_ctx.t3 = p->trapframe->t3;
+        p->sig_ctx.t4 = p->trapframe->t4;
+        p->sig_ctx.t5 = p->trapframe->t5;
+        p->sig_ctx.t6 = p->trapframe->t6;
+
+        p->ticks_occur = 0;
+        p->sig_flag = SIG_HANDLED;
+        p->trapframe->epc = (uint64)p->alarm_handler;
+      }
     }
     yield();
   }
@@ -116,7 +152,7 @@ usertrapret(void)
 
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
-  
+
   // set S Previous Privilege mode to User.
   unsigned long x = r_sstatus();
   x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
@@ -145,7 +181,7 @@ kerneltrap()
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
-  
+
   if((sstatus & SSTATUS_SPP) == 0)
     panic("kerneltrap: not from supervisor mode");
   if(intr_get() != 0)
@@ -187,7 +223,7 @@ devintr()
   uint64 scause = r_scause();
 
   if((scause & 0x8000000000000000L) &&
-     (scause & 0xff) == 9){
+    (scause & 0xff) == 9){
     // this is a supervisor external interrupt, via PLIC.
 
     // irq indicates which device interrupted.
@@ -215,7 +251,7 @@ devintr()
     if(cpuid() == 0){
       clockintr();
     }
-    
+
     // acknowledge the software interrupt by clearing
     // the SSIP bit in sip.
     w_sip(r_sip() & ~2);

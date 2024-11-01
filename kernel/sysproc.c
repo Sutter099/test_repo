@@ -111,6 +111,8 @@ sys_sigalarm(void)
 
   p->interval = interval;
   p->alarm_handler = fn;
+  p->sig_flag = SIG_COUNTING;
+
   release(&p->lock);
 
   printf("sig alarm!\n");
@@ -121,5 +123,43 @@ sys_sigalarm(void)
 uint64
 sys_sigreturn(void)
 {
+  struct proc *p = myproc();
+
+  // user registers saved before syscall sig_alarm
+  p->trapframe->epc = p->sig_ctx.pc;
+  p->trapframe->ra = p->sig_ctx.ra;
+  p->trapframe->sp = p->sig_ctx.sp;
+  p->trapframe->gp = p->sig_ctx.gp;
+  p->trapframe->tp = p->sig_ctx.tp;
+  p->trapframe->t0 = p->sig_ctx.t0;
+  p->trapframe->t1 = p->sig_ctx.t1;
+  p->trapframe->t2 = p->sig_ctx.t2;
+  p->trapframe->s0 = p->sig_ctx.s0;
+  p->trapframe->s1 = p->sig_ctx.s1;
+  p->trapframe->a0 = p->sig_ctx.a0;
+  p->trapframe->a1 = p->sig_ctx.a1;
+  p->trapframe->a2 = p->sig_ctx.a2;
+  p->trapframe->a3 = p->sig_ctx.a3;
+  p->trapframe->a4 = p->sig_ctx.a4;
+  p->trapframe->a5 = p->sig_ctx.a5;
+  p->trapframe->a6 = p->sig_ctx.a6;
+  p->trapframe->a7 = p->sig_ctx.a7;
+  p->trapframe->s2 = p->sig_ctx.s2;
+  p->trapframe->s3 = p->sig_ctx.s3;
+  p->trapframe->s4 = p->sig_ctx.s4;
+  p->trapframe->s5 = p->sig_ctx.s5;
+  p->trapframe->s6 = p->sig_ctx.s6;
+  p->trapframe->s7 = p->sig_ctx.s7;
+  p->trapframe->s8 = p->sig_ctx.s8;
+  p->trapframe->s9 = p->sig_ctx.s9;
+  p->trapframe->s10 = p->sig_ctx.s10;
+  p->trapframe->s11 = p->sig_ctx.s11;
+  p->trapframe->t3 = p->sig_ctx.t3;
+  p->trapframe->t4 = p->sig_ctx.t4;
+  p->trapframe->t5 = p->sig_ctx.t5;
+  p->trapframe->t6 = p->sig_ctx.t6;
+
+  p->sig_flag = SIG_COUNTING;
+
   return 0;
 }

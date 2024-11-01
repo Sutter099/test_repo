@@ -130,6 +130,7 @@ found:
   // set fields used by sigalarm
   p->interval = 0;
   p->ticks_occur = 0;
+  p->sig_flag = SIG_NOT_USED;
   p->alarm_handler = 0;
 
   return p;
@@ -299,6 +300,13 @@ fork(void)
   pid = np->pid;
 
   np->state = RUNNABLE;
+
+  // set fields used by sigalarm
+  p->interval = 0;
+  p->ticks_occur = 0;
+  p->sig_flag = SIG_NOT_USED;
+  p->alarm_handler = 0;
+  
 
   release(&np->lock);
 
@@ -701,15 +709,4 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
-}
-
-struct proc *get_proc(int pid)
-{
-  struct proc *p;
-
-  for(p = proc; p < &proc[NPROC]; p++){
-    if(p->pid == pid)
-      return p;
-  }
-  return 0;
 }
