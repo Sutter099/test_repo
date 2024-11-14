@@ -65,6 +65,24 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if (r_scause() == 0xf || r_scause() == 0xd) {
+    uint64 va = r_stval();
+    if (va > p->sz) {
+      // address higher than any allocated with sbrk()
+      p->killed = 1;
+    } else {
+      uint64 pa = (uint64)kalloc();
+      if (pa == 0) {
+        p->killed = 1;
+      } else {
+        memset((void *)pa, 0, PGSIZE);
+        va = PGROUNDDOWN(va);
+        if (mappages(p->pagetable, va, PGSIZE, pa, PTE_W | PTE_U | PTE_R) != 0) {
+          kfree((void *)pa);
+          p->killed = 1;
+        }
+      }
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -207,7 +225,7 @@ devintr()
     if(cpuid() == 0){
       clockintr();
     }
-    
+
     // acknowledge the software interrupt by clearing
     // the SSIP bit in sip.
     w_sip(r_sip() & ~2);
