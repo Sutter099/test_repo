@@ -67,8 +67,9 @@ usertrap(void)
     syscall();
   } else if (r_scause() == 0xf || r_scause() == 0xd) {
     uint64 va = r_stval();
-    if (va > p->sz) {
+    if (va >= p->sz || va < p->trapframe->sp) {
       // address higher than any allocated with sbrk()
+      // alloc new stack
       p->killed = 1;
     } else {
       uint64 pa = (uint64)kalloc();
