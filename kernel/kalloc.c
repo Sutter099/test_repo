@@ -23,11 +23,29 @@ struct {
   struct run *freelist;
 } kmem;
 
+struct spinlock page_counter_lock;
+struct page_counter_t page_counter;
+
 void
 kinit()
 {
+  struct run *r;
+  // int i;
+
+  initlock(&page_counter_lock, "page_counter");
+  page_counter.working = 0;
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
+
+  page_counter.working = 1;
+  page_counter.length = 0;
+  r = kmem.freelist;
+  while (r != 0) {
+    page_counter.length++;
+    page_counter.counter[(uint64)r / 4096] = 0;
+    r = r->next;
+  }
+  printf("number of pages: %d\n", page_counter.length);
 }
 
 void
@@ -50,6 +68,14 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+
+  acquire(&page_counter_lock);
+  if (page_counter.working &&
+      --page_counter.counter[(uint64)pa / 4096] > 0) {
+    release(&page_counter_lock);
+    return;
+  }
+  release(&page_counter_lock);
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -78,5 +104,9 @@ kalloc(void)
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
+  acquire(&page_counter_lock);
+  page_counter.counter[(uint64)r / 4096]++;
+  release(&page_counter_lock);
+
   return (void*)r;
 }

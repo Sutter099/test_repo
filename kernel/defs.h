@@ -8,6 +8,18 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct page_counter_t {
+  // uint16 *start;
+  uint32 length;
+  // uint64 *page;
+  // uint8 nr_pages;
+  int working;
+
+  signed char counter[32730];
+};
+
+#define D(...) printf(__VA_ARGS__)
+// #define D(...)
 
 // bio.c
 void            binit(void);
@@ -63,6 +75,8 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+extern struct page_counter_t page_counter;
+extern struct spinlock page_counter_lock;
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -168,6 +182,7 @@ void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);
 void            uvmclear(pagetable_t, uint64);
 uint64          walkaddr(pagetable_t, uint64);
+pte_t           *walk(pagetable_t pagetable, uint64 va, int alloc);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
