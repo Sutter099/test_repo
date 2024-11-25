@@ -8,14 +8,10 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+#define KERNBASE 0x80000000L
+#define PHYSTOP (KERNBASE + 128*1024*1024)
 struct page_counter_t {
-  // uint16 *start;
-  uint32 length;
-  // uint64 *page;
-  // uint8 nr_pages;
-  int working;
-
-  signed char counter[32730];
+  signed char counter[PHYSTOP >> 12];
 };
 
 #define D(...) printf(__VA_ARGS__)

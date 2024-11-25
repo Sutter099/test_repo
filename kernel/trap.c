@@ -87,55 +87,36 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if(r_scause() == 0xf) {
-  // } else if(r_scause() == 0xf ||
-  //           r_scause() == 0xd){
-    pte_t *pte_new;
+    signed char count;
+    uint64 mem, pa;
     uint flags;
-    uint64 pa;
-    char *mem;
+    pte_t *pte;
 
-    // D("usertrap: page fault\n");
-    // won't fail here, bcos already checked in uvmcopy
-    pte_new = walk(p->pagetable, (uint64)r_stval(), 0);
-    // pte_new = walkaddr(p->pagetable, (uint64)r_stval());
-    if (!(*pte_new & PTE_COW)) {
-      printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-      printf("pte flags: %x\n", PTE_FLAGS(*pte_new));
-      panic("usertrap: not COW");
+    if (!(pte = walk(p->pagetable, (uint64)r_stval(), 0)) ||
+        !(*pte & PTE_V) || !(*pte & PTE_COW)) {
+      printf("pte flags: %x\n", PTE_FLAGS(*pte));
+      p->killed = 1;
+      exit(-1);
     }
 
-    pa = PTE2PA(*pte_new);
+    *pte &= ~PTE_COW;
+    *pte |= PTE_W;
 
-    // TODO: get the page when it is the last one using
-    if (page_counter.counter[(uint64)r_stval() / 4096] == 1) {
-      *pte_new &= ~PTE_COW;
-      *pte_new |= PTE_W;
-    } else {
-      if ((mem = kalloc()) == 0) {
+    pa = PTE2PA(*pte);
+    acquire(&page_counter_lock);
+    count = page_counter.counter[pa >> 12];
+    release(&page_counter_lock);
+    if (count > 1) {
+      if ((mem = (uint64)kalloc()) == 0) {
         p->killed = 1;
         exit(-1);
       }
 
-      // D("origin pte: %x\n", *pte_new);
-      // print_pte_flags(*pte_new);
-      *pte_new &= ~PTE_COW;
-      *pte_new &= ~PTE_V;
-      *pte_new |= PTE_W;
-      // D("changed pte: %x\n", *pte_new);
-      // print_pte_flags(*pte_new);
-      flags = PTE_FLAGS(*pte_new);
-      // memmove(mem, PGROUNDDOWN(pa), PGSIZE);
-      memmove(mem, (char*)pa, PGSIZE);
+      memmove((char*)mem, (char*)pa, PGSIZE);
       kfree((char*)pa);
-      *pte_new = PA2PTE(mem) | flags | PTE_W | PTE_V;
-      // if(mappages(p->pagetable, (uint64)PGROUNDDOWN(r_stval()), PGSIZE, (uint64)mem, flags) != 0) {
-      //   kfree(mem);
-      //   p->killed = 1;
-      // }
 
-      // how to change permissive of other pagetable that mapped to the same
-      // physical page? check ref counter?
+      flags = PTE_FLAGS(*pte);
+      *pte = PA2PTE(mem) | flags;
     }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);

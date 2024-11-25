@@ -29,23 +29,9 @@ struct page_counter_t page_counter;
 void
 kinit()
 {
-  struct run *r;
-  // int i;
-
   initlock(&page_counter_lock, "page_counter");
-  page_counter.working = 0;
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
-
-  page_counter.working = 1;
-  page_counter.length = 0;
-  r = kmem.freelist;
-  while (r != 0) {
-    page_counter.length++;
-    page_counter.counter[(uint64)r / 4096] = 0;
-    r = r->next;
-  }
-  printf("number of pages: %d\n", page_counter.length);
 }
 
 void
@@ -53,8 +39,10 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE) {
     kfree(p);
+    page_counter.counter[(uint64)p >> 12] = 0;
+  }
 }
 
 // Free the page of physical memory pointed at by v,
@@ -69,10 +57,12 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  // in case of dead lock
+  acquire(&kmem.lock);
   acquire(&page_counter_lock);
-  if (page_counter.working &&
-      --page_counter.counter[(uint64)pa / 4096] > 0) {
+  if (--page_counter.counter[(uint64)pa >> 12] > 0) {
     release(&page_counter_lock);
+    release(&kmem.lock);
     return;
   }
   release(&page_counter_lock);
@@ -82,7 +72,6 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
@@ -98,15 +87,16 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
+    acquire(&page_counter_lock);
+    page_counter.counter[(uint64)r >> 12]++;
+    release(&page_counter_lock);
+  }
   release(&kmem.lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
-  acquire(&page_counter_lock);
-  page_counter.counter[(uint64)r / 4096]++;
-  release(&page_counter_lock);
 
   return (void*)r;
 }
